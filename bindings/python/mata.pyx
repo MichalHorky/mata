@@ -1,4 +1,3 @@
-
 cimport mata
 
 from libcpp.vector cimport vector
@@ -8,6 +7,9 @@ from libcpp.utility cimport pair
 from libcpp.memory cimport shared_ptr, make_shared
 from cython.operator import dereference, postincrement as postinc, preincrement as preinc
 from libcpp.unordered_map cimport unordered_map as umap
+
+cimport alphabets
+import alphabets
 
 import sys
 import shlex
@@ -341,7 +343,7 @@ cdef class Nfa:
         """
         self.thisptr.get().add_trans(dereference(tr.thisptr))
 
-    def add_transition(self, State src, symb, State tgt, Alphabet alphabet = None):
+    def add_transition(self, State src, symb, State tgt, alphabets.Alphabet alphabet = None):
         """Constructs transition and adds it to automaton
 
         :param State src: source state
@@ -349,7 +351,11 @@ cdef class Nfa:
         :param State tgt: target state
         :param Alphabet alphabet: alphabet of the transition
         """
-        self.thisptr.get().add_trans(src, symb, tgt)
+        if isinstance(symb, str):
+            if not alphabet:
+                alphabet = configuration.store().get('alphabet', None)
+        else:
+            self.thisptr.get().add_trans(src, symb, tgt)
 
     def remove_trans(self, Trans tr):
         """
@@ -620,7 +626,7 @@ cdef class Nfa:
             G.add_edge(trans.src, trans.tgt, symbol=trans.symb)
         return G
 
-    def post_map_of(self, State st, Alphabet alphabet):
+    def post_map_of(self, State st, alphabets.Alphabet alphabet):
         """Returns mapping of symbols to set of states.
 
         :param State st: source state
@@ -876,7 +882,7 @@ cdef class Nfa:
         return noodle_segments
 
     @classmethod
-    def complement_with_subset_map(cls, Nfa lhs, Alphabet alphabet, params = None):
+    def complement_with_subset_map(cls, Nfa lhs, alphabets.Alphabet alphabet, params = None):
         """Performs complement of lhs
 
         :param Nfa lhs: complemented automaton
@@ -900,7 +906,7 @@ cdef class Nfa:
         return result, subset_map_to_dictionary(subset_map)
 
     @classmethod
-    def complement(cls, Nfa lhs, Alphabet alphabet, params = None):
+    def complement(cls, Nfa lhs, alphabets.Alphabet alphabet, params = None):
         """Performs complement of lhs
 
         :param Nfa lhs: complemented automaton
@@ -923,7 +929,7 @@ cdef class Nfa:
         return result
 
     @classmethod
-    def make_complete(cls, Nfa lhs, State sink_state, Alphabet alphabet):
+    def make_complete(cls, Nfa lhs, State sink_state, alphabets.Alphabet alphabet):
         """Makes lhs complete
 
         :param Nfa lhs: automaton that will be made complete
@@ -1088,7 +1094,7 @@ cdef class Nfa:
         return mata.is_lang_empty_cex(dereference(lhs.thisptr.get()), &word), word
 
     @classmethod
-    def is_universal(cls, Nfa lhs, Alphabet alphabet, params = None):
+    def is_universal(cls, Nfa lhs, alphabets.Alphabet alphabet, params = None):
         """Tests if lhs is universal wrt given alphabet
 
         :param Nfa lhs: automaton tested for universality
@@ -1109,7 +1115,7 @@ cdef class Nfa:
 
     @classmethod
     def is_included_with_cex(
-            cls, Nfa lhs, Nfa rhs, Alphabet alphabet = None, params = None
+            cls, Nfa lhs, Nfa rhs, alphabets.Alphabet alphabet = None, params = None
     ):
         """Test inclusion between two automata
 
@@ -1138,7 +1144,7 @@ cdef class Nfa:
 
     @classmethod
     def is_included(
-            cls, Nfa lhs, Nfa rhs, Alphabet alphabet = None, params = None
+            cls, Nfa lhs, Nfa rhs, alphabets.Alphabet alphabet = None, params = None
     ):
         """Test inclusion between two automata
 
@@ -1165,7 +1171,7 @@ cdef class Nfa:
         return result
 
     @classmethod
-    def equivalence_check(cls, Nfa lhs, Nfa rhs, Alphabet alphabet = None, params = None) -> bool:
+    def equivalence_check(cls, Nfa lhs, Nfa rhs, alphabets.Alphabet alphabet = None, params = None) -> bool:
         """
         Test equivalence of two automata.
 
@@ -1202,7 +1208,7 @@ cdef class Nfa:
 
 
     @classmethod
-    def is_complete(cls, Nfa lhs, Alphabet alphabet):
+    def is_complete(cls, Nfa lhs, alphabets.Alphabet alphabet):
         """Test if automaton is complete
 
         :param Nf lhs: tested automaton
@@ -1278,176 +1284,6 @@ cdef class Nfa:
             [s.encode('utf-8') for s in word]
         )
 
-cdef class Alphabet:
-    """
-    Base class for alphabets
-    """
-    def __cinit__(self):
-        pass
-
-    def __dealloc__(self):
-        pass
-
-    def translate_symbol(self, str symbol):
-        pass
-
-    def reverse_translate_symbol(self, Symbol symbol):
-        pass
-
-    cdef get_symbols(self):
-        pass
-
-    cdef mata.CAlphabet* as_base(self):
-        pass
-
-cdef class CharAlphabet(Alphabet):
-    """
-    CharAlphabet translates characters in quotes, such as 'a' or "b" to their ordinal values.
-    """
-    cdef mata.CCharAlphabet *thisptr
-
-    def __cinit__(self):
-        self.thisptr = new mata.CCharAlphabet()
-
-    def __dealloc__(self):
-        del self.thisptr
-
-    def translate_symbol(self, str symbol):
-        """Translates character to its ordinal value. If the character is not in quotes,
-        it is interpreted as 0 byte
-
-        :param str symbol: translated symbol
-        :return: ordinal value of the symbol
-        """
-        return self.thisptr.translate_symb(symbol.encode('utf-8'))
-
-    def reverse_translate_symbol(self, Symbol symbol):
-        """Translates the ordinal value back to the character
-
-        :param Symbol symbol: integer symbol
-        :return: symbol as a character
-        """
-        return "'" + chr(symbol) + "'"
-
-    cpdef get_symbols(self):
-        """Returns list of supported symbols
-
-        :return: list of symbols
-        """
-        cdef clist[Symbol] symbols = self.thisptr.get_symbols()
-        return [s for s in symbols]
-
-    cdef mata.CAlphabet* as_base(self):
-        """Retypes the alphabet to its base class
-
-        :return: alphabet as CAlphabet*
-        """
-        return <mata.CAlphabet*> self.thisptr
-
-
-cdef class EnumAlphabet(Alphabet):
-    """
-    EnumAlphabet represents alphabet that has fixed number of possible values
-    """
-
-    cdef mata.CEnumAlphabet *thisptr
-    cdef vector[string] enums_as_strings
-
-    def __cinit__(self, enums):
-        self.enums_as_strings = [e.encode('utf-8') for e in enums]
-        self.thisptr = new mata.CEnumAlphabet(
-            self.enums_as_strings.begin(), self.enums_as_strings.end()
-        )
-
-    def __dealloc__(self):
-        del self.thisptr
-
-    def translate_symbol(self, str symbol):
-        """Translates the symbol ot its position in the enumeration
-
-        :param str symbol: translated symbol
-        :return: symbol as an position in the enumeration
-        """
-        return self.thisptr.translate_symb(symbol.encode('utf-8'))
-
-    def reverse_translate_symbol(self, Symbol symbol):
-        """Translates the symbol back to its string representation
-
-        :param Symbol symbol: integer symbol (position in enumeration)
-        :return: symbol as the original string
-        """
-        if symbol < len(self.enums_as_strings):
-            raise IndexError(f"{symbol} is out of range of enumeration")
-        return self.enums_as_strings[symbol]
-
-    cpdef get_symbols(self):
-        """Returns list of supported symbols
-
-        :return: list of supported symbols
-        """
-        cdef clist[Symbol] symbols = self.thisptr.get_symbols()
-        return [s for s in symbols]
-
-    cdef mata.CAlphabet* as_base(self):
-        """Retypes the alphabet to its base class
-
-        :return: alphabet as CAlphabet*
-        """
-        return <mata.CAlphabet*> self.thisptr
-
-
-cdef class OnTheFlyAlphabet(Alphabet):
-    """
-    OnTheFlyAlphabet represents alphabet that is not known before hand and is constructed on-the-fly
-    """
-    cdef mata.COnTheFlyAlphabet *thisptr
-    cdef StringToSymbolMap string_to_symbol_map
-
-    def __cinit__(self, State initial_symbol = 0):
-        self.thisptr = new mata.COnTheFlyAlphabet(&self.string_to_symbol_map, initial_symbol)
-
-    def __dealloc__(self):
-        del self.thisptr
-
-    def translate_symbol(self, str symbol):
-        """Translates symbol to the position of the seen values
-
-        :param str symbol: translated symbol
-        :return: order of the symbol as was seen during the construction
-        """
-        return self.thisptr.translate_symb(symbol.encode('utf-8'))
-
-    def reverse_translate_symbol(self, Symbol symbol):
-        """Translates symbol back to its string representation
-
-        :param Symbol symbol: integer symbol
-        :return: original string
-        """
-        cdef umap[string, Symbol].iterator it = self.string_to_symbol_map.begin()
-        cdef umap[string, Symbol].iterator end = self.string_to_symbol_map.end()
-        while it != end:
-            key = dereference(it).first
-            value = dereference(it).second
-            if value == symbol:
-                return key
-            postinc(it)
-        raise IndexError(f"{symbol} is out of range of enumeration")
-
-
-    cpdef get_symbols(self):
-        """Returns list of supported symbols
-
-        :return: list of supported symbols
-        """
-        cdef clist[Symbol] symbols = self.thisptr.get_symbols()
-        return [s for s in symbols]
-
-    cdef mata.CAlphabet* as_base(self):
-        """Retypes the alphabet to its base class
-
-        :return: alphabet as CAlphabet*
-        """
-        return <mata.CAlphabet*> self.thisptr
 
 cdef class BinaryRelation:
     """

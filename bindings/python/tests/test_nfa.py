@@ -284,7 +284,7 @@ def test_language_emptiness(fa_one_divisible_by_two):
 
 
 def test_universality(fa_one_divisible_by_two):
-    alph = mata.OnTheFlyAlphabet()
+    alph = mata.alphabets.OnTheFlyAlphabet()
     alph.translate_symbol("a")
     alph.translate_symbol("b")
     assert mata.Nfa.is_universal(fa_one_divisible_by_two, alph) == False
@@ -300,7 +300,7 @@ def test_universality(fa_one_divisible_by_two):
 def test_inclusion(
         fa_one_divisible_by_two, fa_one_divisible_by_four, fa_one_divisible_by_eight
 ):
-    alph = mata.OnTheFlyAlphabet()
+    alph = mata.alphabets.OnTheFlyAlphabet()
     alph.translate_symbol("a")
     alph.translate_symbol("b")
     result, cex = mata.Nfa.is_included_with_cex(fa_one_divisible_by_two, fa_one_divisible_by_four, alph)
@@ -349,9 +349,9 @@ def test_inclusion(
     bigger.add_transition(13, ord('b'), 15)
     bigger.add_transition(15, ord('b'), 15)
 
-    assert not mata.Nfa.equivalence_check(smaller, bigger, mata.EnumAlphabet(alph))
+    assert not mata.Nfa.equivalence_check(smaller, bigger, mata.alphabets.EnumAlphabet(alph))
     assert not mata.Nfa.equivalence_check(smaller, bigger)
-    assert not mata.Nfa.equivalence_check(bigger, smaller, mata.EnumAlphabet(alph))
+    assert not mata.Nfa.equivalence_check(bigger, smaller, mata.alphabets.EnumAlphabet(alph))
     assert not mata.Nfa.equivalence_check(bigger, smaller)
 
     smaller = mata.Nfa(10)
@@ -362,9 +362,9 @@ def test_inclusion(
     bigger.initial_states = [11]
     bigger.final_states = [11]
 
-    assert mata.Nfa.equivalence_check(smaller, bigger, mata.EnumAlphabet(alph))
+    assert mata.Nfa.equivalence_check(smaller, bigger, mata.alphabets.EnumAlphabet(alph))
     assert mata.Nfa.equivalence_check(smaller, bigger)
-    assert mata.Nfa.equivalence_check(bigger, smaller, mata.EnumAlphabet(alph))
+    assert mata.Nfa.equivalence_check(bigger, smaller, mata.alphabets.EnumAlphabet(alph))
     assert mata.Nfa.equivalence_check(bigger, smaller)
 
 
@@ -395,7 +395,7 @@ def test_concatenate():
 def test_completeness(
         fa_one_divisible_by_two, fa_one_divisible_by_four, fa_one_divisible_by_eight
 ):
-    alph = mata.OnTheFlyAlphabet()
+    alph = mata.alphabets.OnTheFlyAlphabet()
     alph.translate_symbol("a")
     alph.translate_symbol("b")
     assert mata.Nfa.is_complete(fa_one_divisible_by_two, alph)
@@ -441,7 +441,7 @@ def test_in_language(
 def test_union(
         fa_one_divisible_by_two, fa_one_divisible_by_four, fa_one_divisible_by_eight
 ):
-    alph = mata.OnTheFlyAlphabet()
+    alph = mata.alphabets.OnTheFlyAlphabet()
     alph.translate_symbol("a")
     alph.translate_symbol("b")
 
@@ -462,7 +462,7 @@ def test_union(
 def test_intersection(
         fa_one_divisible_by_two, fa_one_divisible_by_four, fa_one_divisible_by_eight
 ):
-    alph = mata.OnTheFlyAlphabet()
+    alph = mata.alphabets.OnTheFlyAlphabet()
     alph.translate_symbol("a")
     alph.translate_symbol("b")
 
@@ -580,7 +580,7 @@ def test_intersection_preserving_epsilon_transitions():
 def test_complement(
         fa_one_divisible_by_two, fa_one_divisible_by_four, fa_one_divisible_by_eight
 ):
-    alph = mata.OnTheFlyAlphabet()
+    alph = mata.alphabets.OnTheFlyAlphabet()
     alph.translate_symbol("a")
     alph.translate_symbol("b")
 
