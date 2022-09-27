@@ -156,8 +156,9 @@ cdef class Nfa:
     #  to optimize the shared pointers away if we find that the overhead is becoming too significant to ignore.
     cdef shared_ptr[mata.CNfa] thisptr
     cdef alphabet
+    cdef label
 
-    def __cinit__(self, state_number = 0, alphabet = None):
+    def __cinit__(self, state_number = 0, alphabet = None, label=None):
         """Constructor of the NFA
 
         :param int state_number: number of states in automaton
@@ -165,6 +166,15 @@ cdef class Nfa:
         """
         self.thisptr = make_shared[CNfa](mata.CNfa(state_number))
         self.alphabet = alphabet
+        self.label = label
+
+    @property
+    def label(self):
+        return self.label
+
+    @label.setter
+    def label(self, value):
+        self.label = value
 
     @property
     def initial_states(self):
@@ -1467,11 +1477,11 @@ def divisible_by(k: int):
     assert k > 1
     lhs = Nfa(k+1)
     lhs.make_initial_state(0)
-    lhs.add_trans_raw(0, 0, 0)
+    lhs.add_transition(0, 0, 0)
     for i in range(1, k + 1):
-        lhs.add_trans_raw(i - 1, 1, i)
-        lhs.add_trans_raw(i, 0, i)
-    lhs.add_trans_raw(k, 1, 1)
+        lhs.add_transition(i - 1, 1, i)
+        lhs.add_transition(i, 0, i)
+    lhs.add_transition(k, 1, 1)
     lhs.make_final_state(k)
     return lhs
 
@@ -1659,13 +1669,14 @@ def plot_using_graphviz(
     # Configuration
     base_configuration = configuration.store()['node_style']
     dot = graphviz.Digraph("dot")
-    dot.attr()
+    if aut.label:
+        dot.attr(label=aut.label, labelloc="t", kw="graph")
 
     if with_scc:
         G = aut.to_networkx_graph()
         for i, scc in enumerate(nx.strongly_connected_components(G)):
             with dot.subgraph(name=f"cluster_{i}") as c:
-                c.attr(color='black', style='filled', fillcolor="lightgray")
+                c.attr(color='black', style='filled', fillcolor="lightgray", label="")
                 for state in scc:
                     _plot_state(
                         aut, c, state,
