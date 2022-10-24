@@ -155,6 +155,31 @@ class Prog {
   // memmove(3) and then clearing any remaining elements with memset(3).
   static_assert(std::is_trivial<Inst>::value, "Inst must be trivial");
 
+  // Whether to anchor the search.
+  enum Anchor {
+    kUnanchored,  // match anywhere
+    kAnchored,    // match only starting at beginning of text
+  };
+
+  // Kind of match to look for (for anchor != kFullMatch)
+  //
+  // kLongestMatch mode finds the overall longest
+  // match but still makes its submatch choices the way
+  // Perl would, not in the way prescribed by POSIX.
+  // The POSIX rules are much more expensive to implement,
+  // and no one has needed them.
+  //
+  // kFullMatch is not strictly necessary -- we could use
+  // kLongestMatch and then check the length of the match -- but
+  // the matching code can run faster if it knows to consider only
+  // full matches.
+  enum MatchKind {
+    kFirstMatch,     // like Perl, PCRE
+    kLongestMatch,   // like egrep or POSIX
+    kFullMatch,      // match only entire text; implies anchor==kAnchored
+    kManyMatch       // for SearchDFA, records set of matches
+  };
+
   Inst *inst(int id) { return &inst_[id]; }
   int start() { return start_; }
   void set_start(int start) { start_ = start; }
@@ -163,17 +188,25 @@ class Prog {
   int size() { return size_; }
   bool reversed() { return reversed_; }
   void set_reversed(bool reversed) { reversed_ = reversed; }
+  int inst_count(InstOp op) { return inst_count_[op]; }
   void set_dfa_mem(int64_t dfa_mem) { dfa_mem_ = dfa_mem; }
   bool anchor_start() { return anchor_start_; }
   void set_anchor_start(bool b) { anchor_start_ = b; }
+  bool anchor_end() { return anchor_end_; }
   void set_anchor_end(bool b) { anchor_end_ = b; }
   int bytemap_range() { return bytemap_range_; }
+  const uint8_t* bytemap() { return bytemap_; }
 
   // Configures prefix accel using the analysis performed during compilation.
   void ConfigurePrefixAccel(const std::string& prefix, bool prefix_foldcase);
 
   // Returns string representation of program for debugging.
   std::string Dump();
+  std::string DumpByteMap();
+
+  // Returns the set of kEmpty flags that are in effect at
+  // position p within context.
+  static uint32_t EmptyFlags(const StringPiece& context, const char* p);
 
   // Returns whether byte c is a word character: ASCII only.
   // Used by the implementation of \b and \B.
@@ -195,9 +228,19 @@ class Prog {
   // Run peep-hole optimizer on program.
   void Optimize();
 
+  // One-pass NFA: only correct if IsOnePass() is true,
+  // but much faster than NFA (competitive with PCRE)
+  // for those expressions.
+  bool IsOnePass();
+  bool SearchOnePass(const StringPiece& text, const StringPiece& context,
+                     Anchor anchor, MatchKind kind,
+                     StringPiece* match, int nmatch);
+
   // Bit-state backtracking.  Fast on small cases but uses memory
   // proportional to the product of the list count and the text size.
   bool CanBitState() { return list_heads_.data() != NULL; }
+
+  static const int kMaxOnePassCapture = 5;  // $0 through $4
 
   // Flattens the Prog from "tree" form to "list" form. This is an in-place
   // operation in the sense that the old instructions are lost.
@@ -270,6 +313,17 @@ class Prog {
   Prog(const Prog&) = delete;
   Prog& operator=(const Prog&) = delete;
 };
+
+// std::string_view in MSVC has iterators that aren't just pointers and
+// that don't allow comparisons between different objects - not even if
+// those objects are views into the same string! Thus, we provide these
+// conversion functions for convenience.
+static inline const char* BeginPtr(const StringPiece& s) {
+  return s.data();
+}
+static inline const char* EndPtr(const StringPiece& s) {
+  return s.data() + s.size();
+}
 
 }  // namespace re2
 

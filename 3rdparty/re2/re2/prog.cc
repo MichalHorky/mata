@@ -168,6 +168,19 @@ std::string Prog::Dump() {
   return ProgToString(this, &q);
 }
 
+std::string Prog::DumpByteMap() {
+  std::string map;
+  for (int c = 0; c < 256; c++) {
+    int b = bytemap_[c];
+    int lo = c;
+    while (c < 256-1 && bytemap_[c+1] == b)
+        c++;
+    int hi = c;
+    map += StringPrintf("[%02x-%02x] -> %d\n", lo, hi, b);
+  }
+  return map;
+}
+
 // Is ip a guaranteed match at end of text, perhaps after some capturing?
 static bool IsMatch(Prog* prog, Prog::Inst* ip) {
   for (;;) {
@@ -256,6 +269,40 @@ void Prog::Optimize() {
       }
     }
   }
+}
+
+uint32_t Prog::EmptyFlags(const StringPiece& text, const char* p) {
+  int flags = 0;
+
+  // ^ and \A
+  if (p == text.data())
+    flags |= kEmptyBeginText | kEmptyBeginLine;
+  else if (p[-1] == '\n')
+    flags |= kEmptyBeginLine;
+
+  // $ and \z
+  if (p == text.data() + text.size())
+    flags |= kEmptyEndText | kEmptyEndLine;
+  else if (p < text.data() + text.size() && p[0] == '\n')
+    flags |= kEmptyEndLine;
+
+    // \b and \B
+  if (p == text.data() && p == text.data() + text.size()) {
+    // no word boundary here
+  } else if (p == text.data()) {
+    if (IsWordChar(p[0]))
+        flags |= kEmptyWordBoundary;
+  } else if (p == text.data() + text.size()) {
+    if (IsWordChar(p[-1]))
+        flags |= kEmptyWordBoundary;
+  } else {
+    if (IsWordChar(p[-1]) != IsWordChar(p[0]))
+        flags |= kEmptyWordBoundary;
+  }
+  if (!(flags & kEmptyWordBoundary))
+    flags |= kEmptyNonWordBoundary;
+
+return flags;
 }
 
 

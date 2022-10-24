@@ -198,6 +198,7 @@ class RegexpStatus {
   void set_error_arg(const StringPiece& error_arg) { error_arg_ = error_arg; }
   void set_tmp(std::string* tmp) { delete tmp_; tmp_ = tmp; }
   RegexpStatusCode code() const { return code_; }
+  const StringPiece& error_arg() const { return error_arg_; }
 
   // Returns text equivalent of code, e.g.:
   //   "Bad character class"
@@ -325,6 +326,9 @@ class Regexp {
       return submany_;
   }
 
+    // To make constructor visible in classes
+    class Derivatives;
+
   int min() { DCHECK_EQ(op_, kRegexpRepeat); return min_; }
   int max() { DCHECK_EQ(op_, kRegexpRepeat); return max_; }
   Rune rune() { DCHECK_EQ(op_, kRegexpLiteral); return rune_; }
@@ -358,6 +362,10 @@ class Regexp {
   friend class CoalesceWalker;
   friend class SimplifyWalker;
 
+  // Returns the number of capturing groups in the regexp.
+  int NumCaptures();
+  friend class NumCapturesWalker;
+
   // Returns a string representation of the current regexp,
   // using as few parentheses as possible.
   std::string ToString();
@@ -374,6 +382,11 @@ class Regexp {
   static Regexp* NewLiteral(Rune rune, ParseFlags flags);
   static Regexp* NewCharClass(CharClass* cc, ParseFlags flags);
   static Regexp* LiteralString(Rune* runes, int nrunes, ParseFlags flags);
+  // Functions for slicing LiteralString, for CsAs LiteralString is understood as a concatenation of Literals
+  static Regexp *FirstLiteralFromLiteralString(Rune *runes, ParseFlags flags);
+  static Regexp *RestOfLiteralsFromLiteralString(Rune *runes, int nrunes, ParseFlags flags);
+  // Removal of the first node in Concat is needed to for the CsAs construction
+  static Regexp *RemoveFirstFromConcat(Regexp **sub, int nsub, ParseFlags flags, bool can_factor);
 
   // Like Alternate but does not factor out common prefixes.
   static Regexp* AlternateNoFactor(Regexp** subs, int nsubs, ParseFlags flags);
@@ -387,6 +400,15 @@ class Regexp {
   // stay within approximately max_mem bytes of memory.
   // If max_mem <= 0, a reasonable default is used.
   Prog* CompileToProg(int64_t max_mem);
+
+  // Whether every match of this regexp must be anchored and
+  // begin with a non-empty fixed string (perhaps after ASCII
+  // case-folding).  If so, returns the prefix and the sub-regexp that
+  // follows it.
+  // Callers should expect *prefix, *foldcase and *suffix to be "zeroed"
+  // regardless of the return value.
+  bool RequiredPrefix(std::string* prefix, bool* foldcase,
+                      Regexp** suffix);
 
   // Whether every match of this regexp must be unanchored and
   // begin with a non-empty fixed string (perhaps after ASCII

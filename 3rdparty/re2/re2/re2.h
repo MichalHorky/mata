@@ -232,6 +232,32 @@ class RE2 {
   // We convert user-passed pointers into special Arg objects
   class Options;
 
+  enum ErrorCode {
+    NoError = 0,
+
+
+    // Unexpected error
+    ErrorInternal,
+
+    // Parse errors
+    ErrorBadEscape,          // bad escape sequence
+    ErrorBadCharClass,       // bad character class
+    ErrorBadCharRange,       // bad character class range
+    ErrorMissingBracket,     // missing closing ]
+    ErrorMissingParen,       // missing closing )
+    ErrorUnexpectedParen,    // unexpected closing )
+    ErrorTrailingBackslash,  // trailing \ at end of regexp
+    ErrorRepeatArgument,     // repeat argument missing, e.g. "*"
+    ErrorRepeatSize,         // bad repetition argument
+    ErrorRepeatOp,           // bad repetition operator
+    ErrorBadPerlOp,          // bad perl operator
+    ErrorBadUTF8,            // invalid UTF-8 in regexp
+    ErrorBadNamedCapture,    // bad named capture group
+    ErrorPatternTooLarge     // pattern too large (compile failed)
+    };
+
+  RE2(const std::string& pattern);
+
   ~RE2();
 
   // If RE2 could not be created properly, returns an error string.
@@ -242,6 +268,10 @@ class RE2 {
   // Returns entire_regexp_ so that callers don't need
   // to know about prefix_ and prefix_foldcase_.
   re2::Regexp* Regexp() const { return entire_regexp_; }
+
+  re2::Prog *Prog() const { return prog_; };
+
+  void Init(const StringPiece& pattern, const Options& options);
 
   // Generic matching interface
 
@@ -352,6 +382,10 @@ class RE2 {
 
     bool one_line() const { return one_line_; }
 
+    void Copy(const Options& src) {
+        *this = src;
+    }
+
 
     int ParseFlags() const;
 
@@ -372,12 +406,17 @@ class RE2 {
  private:
 
   std::string pattern_;         // string regular expression
+  Options options_;             // option flags
   re2::Regexp* entire_regexp_;  // parsed regular expression
   const std::string* error_;    // error indicator (or points to empty string)
+  ErrorCode error_code_;        // error code
   std::string error_arg_;       // fragment of regexp showing error
   std::string prefix_;          // required prefix (before suffix_regexp_)
+  bool prefix_foldcase_;        // prefix_ is ASCII case-insensitive
   re2::Regexp* suffix_regexp_;  // parsed regular expression, prefix_ removed
   re2::Prog* prog_;             // compiled program for regexp
+  int num_captures_;            // number of capturing groups
+  bool is_one_pass_;            // can use prog_->SearchOnePass?
 
   // Reverse Prog for DFA execution only
   mutable re2::Prog* rprog_;

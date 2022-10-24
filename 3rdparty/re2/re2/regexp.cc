@@ -20,6 +20,7 @@
 #include "util/mutex.h"
 #include "util/utf.h"
 #include "re2/pod_array.h"
+#include "re2/walker-inl.h"
 
 namespace re2 {
 
@@ -305,6 +306,46 @@ Regexp* Regexp::LiteralString(Rune* runes, int nrunes, ParseFlags flags) {
   return re;
 }
 
+// Added for derivative construction
+Regexp* Regexp::FirstLiteralFromLiteralString(Rune* runes, ParseFlags flags) {
+    return NewLiteral(runes[0], flags);
+}
+
+// Added for derivative construction
+Regexp* Regexp::RestOfLiteralsFromLiteralString(Rune* runes, int nrunes, ParseFlags flags) {
+    // First index is 1 because 0 is taken as a Literal (operand1) by first function (FirstLiteralFromLiteralString)
+    // So first literal (index 0) will be "deleted"
+    // Result of this function will be operand 2 (see Derivatives for example of usage)
+    if (nrunes == 0)
+        return NULL;
+
+    if (nrunes == 1)
+        return NewLiteral(runes[1], flags);
+    Regexp* re = new Regexp(kRegexpLiteralString, flags);
+    for (int i = 1; i <= nrunes; i++)
+        re->AddRuneToString(runes[i]);
+    return re;
+}
+
+// Added for derivative construction
+// Function returns a new regex with sub[1..nsub-1] (ie. remove the first node)
+Regexp* Regexp::RemoveFirstFromConcat(Regexp** sub, int nsub,
+                                      ParseFlags flags, bool can_factor) {
+
+    if (nsub == 0)
+        return NULL;
+
+    if (nsub == 1)
+        return sub[1];
+
+    Regexp* re = new Regexp(kRegexpConcat, flags);
+    re->AllocSub(nsub);
+    Regexp** subs = re->sub();
+    for (int i = 1; i <= nsub; i++)
+        subs[i-1] = sub[i];
+    return re;
+}
+
 Regexp* Regexp::NewCharClass(CharClass* cc, ParseFlags flags) {
   Regexp* re = new Regexp(kRegexpCharClass, flags);
   re->cc_ = cc;
@@ -503,6 +544,41 @@ std::string RegexpStatus::Text() const {
   return s;
 }
 
+typedef int Ignored;  // Walker<void> doesn't exist
+
+// Walker subclass to count capturing parens in regexp.
+class NumCapturesWalker : public Regexp::Walker<Ignored> {
+  public:
+    NumCapturesWalker() : ncapture_(0) {}
+    int ncapture() { return ncapture_; }
+
+    virtual Ignored PreVisit(Regexp* re, Ignored ignored, bool* stop) {
+      if (re->op() == kRegexpCapture)
+        ncapture_++;
+      return ignored;
+    }
+
+    virtual Ignored ShortVisit(Regexp* re, Ignored ignored) {
+      // Should never be called: we use Walk(), not WalkExponential().
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+      LOG(DFATAL) << "NumCapturesWalker::ShortVisit called";
+#endif
+      return ignored;
+    }
+
+  private:
+    int ncapture_;
+
+    NumCapturesWalker(const NumCapturesWalker&) = delete;
+    NumCapturesWalker& operator=(const NumCapturesWalker&) = delete;
+};
+
+int Regexp::NumCaptures() {
+  NumCapturesWalker w;
+  w.Walk(this, 0);
+  return w.ncapture();
+}
+
 void ConvertRunesToBytes(bool latin1, Rune* runes, int nrunes,
                          std::string* bytes) {
   if (latin1) {
@@ -517,6 +593,48 @@ void ConvertRunesToBytes(bool latin1, Rune* runes, int nrunes,
     bytes->resize(p - &(*bytes)[0]);
     bytes->shrink_to_fit();
   }
+}
+
+// Determines whether regexp matches must be anchored
+// with a fixed string prefix.  If so, returns the prefix and
+// the regexp that remains after the prefix.  The prefix might
+// be ASCII case-insensitive.
+bool Regexp::RequiredPrefix(std::string* prefix, bool* foldcase,
+                            Regexp** suffix) {
+  prefix->clear();
+  *foldcase = false;
+  *suffix = NULL;
+
+  // No need for a walker: the regexp must be of the form
+  // 1. some number of ^ anchors
+  // 2. a literal char or string
+  // 3. the rest
+  if (op_ != kRegexpConcat)
+    return false;
+  int i = 0;
+  while (i < nsub_ && sub()[i]->op_ == kRegexpBeginText)
+    i++;
+  if (i == 0 || i >= nsub_)
+    return false;
+  Regexp* re = sub()[i];
+  if (re->op_ != kRegexpLiteral &&
+    re->op_ != kRegexpLiteralString)
+    return false;
+  i++;
+  if (i < nsub_) {
+    for (int j = i; j < nsub_; j++)
+      sub()[j]->Incref();
+    *suffix = Concat(sub() + i, nsub_ - i, parse_flags());
+  } else {
+    *suffix = new Regexp(kRegexpEmptyMatch, parse_flags());
+  }
+
+  bool latin1 = (re->parse_flags() & Latin1) != 0;
+  Rune* runes = re->op_ == kRegexpLiteral ? &re->rune_ : re->runes_;
+  int nrunes = re->op_ == kRegexpLiteral ? 1 : re->nrunes_;
+  ConvertRunesToBytes(latin1, runes, nrunes, prefix);
+  *foldcase = (re->parse_flags() & FoldCase) != 0;
+  return true;
 }
 
 // Determines whether regexp matches must be unanchored

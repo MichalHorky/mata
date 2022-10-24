@@ -1,6 +1,8 @@
 add_library(re2
+        ca/derivatives.cc
         re2/bitmap256.h
         re2/compile.cc
+        re2/onepass.cc
         re2/parse.cc
         re2/perl_groups.cc
         re2/pod_array.h

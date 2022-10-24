@@ -24,6 +24,7 @@
 #include <re2/re2/regexp.h>
 #include <re2/re2/prog.h>
 #include <re2/util/logging.h>
+#include <re2/ca/derivatives.h>
 
 
 namespace {

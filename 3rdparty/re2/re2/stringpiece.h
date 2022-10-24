@@ -107,6 +107,7 @@ class StringPiece {
   }
 
   size_type copy(char* buf, size_type n, size_type pos = 0) const;
+  StringPiece substr(size_type pos = 0, size_type n = npos) const;
 
   bool contains(const StringPiece& s) const {
     return find(s) != npos;

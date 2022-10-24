@@ -18,6 +18,12 @@ StringPiece::size_type StringPiece::copy(char* buf, size_type n,
   return ret;
 }
 
+StringPiece StringPiece::substr(size_type pos, size_type n) const {
+  if (pos > size_) pos = size_;
+  if (n > size_ - pos) n = size_ - pos;
+  return StringPiece(data_ + pos, n);
+}
+
 StringPiece::size_type StringPiece::find(const StringPiece& s,
                                          size_type pos) const {
   if (pos > size_) return npos;
