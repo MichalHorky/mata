@@ -20,10 +20,12 @@
 
 #include <string>
 #include <mata/nfa.hh>
+#include <re2/ca/derivatives.h>
 
 namespace Mata {
     namespace RE2Parser {
         void create_nfa(Nfa::Nfa* nfa, const std::string &pattern, bool use_epsilon = false, int epsilon_value = 306);
+        re2::Regexp::Derivatives create_ca(const std::string& pattern);
     }
 }
 

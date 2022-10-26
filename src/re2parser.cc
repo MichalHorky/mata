@@ -555,6 +555,12 @@ namespace {
         };
 }
 
+re2::Regexp::Derivatives Mata::RE2Parser::create_ca(const std::string& pattern) {
+    re2::Regexp::Derivatives derivatives = re2::Regexp::Derivatives();
+    derivatives.getCa(pattern);
+    return derivatives;
+}
+
  /**
  * The main method, it creates NFA from regex
  * @param pattern regex as string
