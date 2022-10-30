@@ -139,6 +139,8 @@ namespace re2 {
 
         void removeUnreachableStates();
 
+        void delimitCountingLoops();
+
     private:
         std::list<re2::Regexp *> statesToCompute;
 
@@ -156,6 +158,22 @@ namespace re2 {
 
         // functions used to delimit loops of ca
         std::string transitionGrdsAndOpsToString(const CaTransition &trans) const;
+
+        std::set<unsigned> findLoopStates(unsigned loop);
+        bool isIncrState(std::vector<CaTransition> &transitions, unsigned loop);
+        std::vector<unsigned> findIncrStates(unsigned loop);
+        void findIncrTargets(std::vector<CaTransition> &transitions, std::set<unsigned> &targets, unsigned loop);
+        std::set<unsigned> findIdTargets(std::vector<CaTransition> &transitions);
+        std::set<unsigned> statesBeforeLoop(unsigned loop);
+        bool isIncrTrans(CaTransition &trans, unsigned loop);
+        std::map<unsigned, unsigned> createNewStates(std::set<unsigned> statesToDuplicate, std::set<unsigned> &newStates);
+        void modifyLoopStates(std::map<unsigned, unsigned> map, std::set<unsigned> states, unsigned loop);
+        void modifyOuterTrans(
+            std::map<unsigned, unsigned> map,
+            std::set<unsigned> loopStates,
+            std::set<unsigned> newStates,
+            unsigned loop
+        );
 
         void computeNewState(re2::Regexp *regexp, const uint8_t *bytemap, int bytemapRange,
                              const std::string &compositionStrToConcat = "");

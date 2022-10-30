@@ -754,6 +754,71 @@ namespace re2 {
     }
 
 
+    bool Regexp::Derivatives::isIncrTrans(CaTransition &trans, unsigned loop) {
+        for (auto &op : std::get<3>(trans)) {
+            if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::INCR
+                && op.countingLoop == loop
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Regexp::Derivatives::isIncrState(std::vector<CaTransition> &transitions, unsigned loop) {
+        for (auto &trans : transitions) {
+            for (auto &op : std::get<3>(trans)) {
+                if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::INCR
+                    && op.countingLoop == loop
+                ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    std::vector<unsigned> Regexp::Derivatives::findIncrStates(unsigned loop) {
+        std::vector<unsigned> incrStates{};
+        for (unsigned i = 0; i < this->transitions.size(); i++) {
+            if (isIncrState(this->transitions[i], loop)) {
+                incrStates.push_back(i);
+            }
+        }
+        return incrStates;
+    }
+
+    void Regexp::Derivatives::findIncrTargets(std::vector<CaTransition> &transitions, std::set<unsigned> &targets, unsigned loop) {
+        for (auto &trans : transitions) {
+            for (auto &op : std::get<3>(trans)) {
+                if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::INCR
+                    && op.countingLoop == loop
+                ) {
+                    targets.insert(std::get<1>(trans));
+                }
+            }
+        }
+    }
+
+    std::set<unsigned> Regexp::Derivatives::findIdTargets(std::vector<CaTransition> &transitions) {
+        std::set<unsigned> targets{};
+        for (auto &trans : transitions) {
+            auto grds = std::get<2>(trans);
+            auto ops = std::get<3>(trans);
+            if (
+                grds.size() == 1
+                && ops.size() == 1
+                && (*grds.begin()).grd == re2::Regexp::Derivatives::counterGuardEnum::True
+                && (*grds.begin()).countingLoop == 0
+                && (*ops.begin()).op == re2::Regexp::Derivatives::counterOperatorEnum::ID
+                && (*ops.begin()).countingLoop == 0
+            ) {
+                targets.insert(std::get<1>(trans));
+            }
+        }
+        return targets;
+    }
+
     void Regexp::Derivatives::removeUnreachableStates() {
         std::vector<unsigned> statesToProcess{0}; // starting with intial state
         std::vector<unsigned> processedStates{};
@@ -770,6 +835,120 @@ namespace re2 {
                 }
                 this->transitions[cur].push_back(std::make_tuple(trans.first.first, trans.first.second, trans.second.first, trans.second.second));
             }
+        }
+    }
+
+    std::set<unsigned> Regexp::Derivatives::findLoopStates(unsigned loop) {
+        std::vector<unsigned> incrStates = findIncrStates(loop);
+        std::set<unsigned> statesToProcess{};
+        for (unsigned state : incrStates){
+            findIncrTargets(this->transitions[state], statesToProcess, loop);
+        }
+        std::set<unsigned> reachedStates{};
+        while (!statesToProcess.empty()) {
+            unsigned cur = *statesToProcess.begin();
+            statesToProcess.erase(cur);
+            reachedStates.insert(cur);
+            for (unsigned state : findIdTargets(this->transitions[cur])) {
+                if (!std::count(reachedStates.begin(), reachedStates.end(), state)) {
+                    statesToProcess.insert(state);
+                }
+            }
+        }
+        return reachedStates;
+    }
+
+    std::set<unsigned> Regexp::Derivatives::statesBeforeLoop(unsigned loop) {
+        std::set<unsigned> statesToProcess{0}; // starting with intial state
+        std::set<unsigned> processedStates{};
+        while (!statesToProcess.empty()) {
+            unsigned cur = *statesToProcess.begin();
+            statesToProcess.erase(cur);
+            processedStates.insert(cur);
+            for (CaTransition &trans : this->transitions[cur]) {
+                if (!std::count(processedStates.begin(), processedStates.end(), std::get<1>(trans))
+                    && !isIncrTrans(trans, loop)
+                ) {
+                    statesToProcess.insert(std::get<1>(trans));
+                }
+            }
+        }
+        return processedStates;
+    }
+
+    std::map<unsigned, unsigned> Regexp::Derivatives::createNewStates(std::set<unsigned> statesToDuplicate, std::set<unsigned> &newStates) {
+        std::map<unsigned, unsigned> map{};
+        for (unsigned state : statesToDuplicate) {
+            this->transitions.push_back(this->transitions[state]);
+            map[state] = this->transitions.size() - 1;
+            newStates.insert(this->transitions.size() - 1);
+        }
+        return map;
+    }
+
+    void Regexp::Derivatives::modifyLoopStates(std::map<unsigned, unsigned> map, std::set<unsigned> states, unsigned loop) {
+        for (unsigned state : states) {
+            unsigned index = state;
+            if (map.find(state) != map.end()) {
+                index = map[state];
+            }
+            for (auto &trans : this->transitions[index]) {
+                if (map.find(std::get<1>(trans)) != map.end()) {
+                    std::get<1>(trans) = map[std::get<1>(trans)];
+                }
+                for (auto &op : std::get<3>(trans)) {
+                    if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::ID) {
+                        op.countingLoop = loop;
+                    }
+                }
+            }
+        }
+    }
+
+    void Regexp::Derivatives::modifyOuterTrans(
+        std::map<unsigned, unsigned> map,
+        std::set<unsigned> loopStates,
+        std::set<unsigned> newStates,
+        unsigned loop
+    ) {
+        for (unsigned i = 0; i < this->transitions.size(); i++) {
+            if ((map.find(i) != map.end()
+                || loopStates.find(i) == loopStates.end())
+                && newStates.find(i) == newStates.end()
+            ) {
+                for (auto &trans : transitions[i]) {
+                    for (auto &op : std::get<3>(trans)) {
+                        if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::INCR
+                            && op.countingLoop == loop) {
+                            op.op = re2::Regexp::Derivatives::counterOperatorEnum::EXIT1;
+                            if (map.find(std::get<1>(trans)) != map.end()) {
+                                std::get<1>(trans) = map[std::get<1>(trans)];
+                            }
+                        }
+                    }
+                    // add guard modifications
+                }
+            }
+        }
+    }
+
+
+    void Regexp::Derivatives::delimitCountingLoops() {
+        for (unsigned loop : this->countingLoops) {
+            std::set<unsigned> loopStates = findLoopStates(loop);
+            std::set<unsigned> beforeLoopStates = statesBeforeLoop(loop);
+            std::set<unsigned> intersect;
+            std::set_intersection(
+                loopStates.begin(),
+                loopStates.end(),
+                beforeLoopStates.begin(),
+                beforeLoopStates.end(),
+                std::inserter(intersect, intersect.begin())
+            );
+            std::set<unsigned> newStates{};
+            std::map<unsigned, unsigned> oldToNew = createNewStates(intersect, newStates);
+            modifyLoopStates(oldToNew, loopStates, loop);
+            modifyOuterTrans(oldToNew, loopStates, newStates, loop);
         }
     }
 
