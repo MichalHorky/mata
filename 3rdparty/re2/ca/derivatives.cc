@@ -631,6 +631,148 @@ namespace re2 {
         return {};
     }
 
+        // find all counters referenced in transition
+    std::string getTransitionCounters(const Regexp::Derivatives::caTransition &trans){
+        std::set<unsigned> counters{};
+        for (auto &grd : trans.second.first){
+            if (grd.countingLoop != 0 && counters.find(grd.countingLoop) == counters.end()) {
+                counters.insert(grd.countingLoop);
+            }
+            
+        }
+        std::string result = "";
+        for (unsigned counter : counters) {
+            result = result + std::to_string(counter) + ",";  
+        }
+        return result;
+    }
+
+    void Regexp::Derivatives::printToDOT1(std::ostream &outputStream) const {
+        std::vector<std::string> numberToRegex(this->regexNumberMapping.size());
+        for (const auto & pair : this->regexNumberMapping) {
+            numberToRegex[pair.second] = pair.first;
+        }
+        outputStream << "digraph countingAutomaton {" << std::endl;
+        outputStream << "node [shape=circle]" << std::endl;
+        std::vector<unsigned> statesToProcess{0};
+        std::vector<unsigned> processedStates{};
+        
+        while (!statesToProcess.empty()){
+            unsigned cur = statesToProcess.back();
+            statesToProcess.pop_back();
+            processedStates.push_back(cur);
+            for (const auto &trans : this->partialDerivatives[cur]){
+                if (!std::count(processedStates.begin(), processedStates.end(), trans.first.second)
+                    && !std::count(statesToProcess.begin(), statesToProcess.end(), trans.first.second)) {
+                    statesToProcess.push_back(trans.first.second);
+                }
+                outputStream << "\"" << numberToRegex[cur] << "\""
+                            << " -> "
+                            << "\"" << numberToRegex[trans.first.second] << "\""
+                            << " [label=\""  << trans.first.first
+                            << "|"  << getTransitionCounters(trans) << "\"]\n";
+            }
+        }
+
+        // states that can be potencialy final, based on their guard
+        for (auto state : processedStates) {
+            if (this->finalStates[state].isSet) {
+                outputStream << "\"" << numberToRegex[state] << "\"[shape=doublecircle]\n";
+            }
+        }
+        outputStream << "}" << std::endl;
+    }
+
+    std::string Regexp::Derivatives::transitionGrdsAndOpsToString(const CaTransition &trans) const {
+        std::string str = "";
+        for (auto &grd : std::get<2>(trans)) {
+            switch (grd.grd)
+            {
+            case re2::Regexp::Derivatives::counterGuardEnum::True:
+                str = str + "T";
+                break;
+            case re2::Regexp::Derivatives::counterGuardEnum::CanIncr:
+                str = str + "CanInc";
+                break;
+            case re2::Regexp::Derivatives::counterGuardEnum::CanExit:
+                str = str + "CanExit";
+                break;
+            case re2::Regexp::Derivatives::counterGuardEnum::False:
+                str = str + "F";
+                break;
+            
+            }
+            str = str + " c:" + std::to_string(grd.countingLoop) + ", ";
+        }
+        str = str + "/";
+        for (auto &op : std::get<3>(trans)) {
+            switch (op.op)
+            {
+            case re2::Regexp::Derivatives::counterOperatorEnum::ID:
+                str = str + "ID";
+                break;
+            case re2::Regexp::Derivatives::counterOperatorEnum::INCR:
+                str = str + "Inc";
+                break;
+            case re2::Regexp::Derivatives::counterOperatorEnum::EXIT:
+                str = str + "Exit";
+                break;
+            case re2::Regexp::Derivatives::counterOperatorEnum::EXIT1:
+                str = str + "Exit1";
+                break;
+            }
+            str = str + " c:" + std::to_string(op.countingLoop) + ", ";
+        }
+        return str;
+    }
+
+
+    void Regexp::Derivatives::printToDOT2(std::ostream &outputStream) const {
+        outputStream << "digraph countingAutomaton {" << std::endl;
+        outputStream << "node [shape=circle]" << std::endl;
+        std::vector<unsigned> statesToProcess{0};
+        std::vector<unsigned> processedStates{};
+        
+        while (!statesToProcess.empty()){
+            unsigned cur = statesToProcess.back();
+            statesToProcess.pop_back();
+            processedStates.push_back(cur);
+            for (const auto &trans : this->transitions[cur]){
+                if (!std::count(processedStates.begin(), processedStates.end(), std::get<1>(trans))
+                    && !std::count(statesToProcess.begin(), statesToProcess.end(), std::get<1>(trans))) {
+                    statesToProcess.push_back(std::get<1>(trans));
+                }
+                outputStream << "\"" << cur << "\""
+                            << " -> "
+                            << "\"" << std::get<1>(trans) << "\""
+                            << " [label=\""  << std::get<0>(trans)
+                            << "|" << transitionGrdsAndOpsToString(trans) << "\"]\n";
+            }
+        }
+
+        outputStream << "}" << std::endl;
+    }
+
+
+    void Regexp::Derivatives::removeUnreachableStates() {
+        std::vector<unsigned> statesToProcess{0}; // starting with intial state
+        std::vector<unsigned> processedStates{};
+        this->transitions.resize(this->partialDerivatives.size());
+        while (!statesToProcess.empty()) {
+            unsigned cur = statesToProcess.back();
+            statesToProcess.pop_back();
+            processedStates.push_back(cur);
+            for (auto &trans : this->partialDerivatives[cur]) {
+                if (!std::count(statesToProcess.begin(), statesToProcess.end(), trans.first.second)
+                    && !std::count(processedStates.begin(), processedStates.end(), trans.first.second)
+                ) {
+                    statesToProcess.push_back(trans.first.second);
+                }
+                this->transitions[cur].push_back(std::make_tuple(trans.first.first, trans.first.second, trans.second.first, trans.second.second));
+            }
+        }
+    }
+
     void Regexp::Derivatives::rewriteToFlattenedRightAssociativeForm(re2::Regexp *&regexp) {
         // We want to rewrite all capture groups (if the regexp is (((a))) we want to rewrite it to a)
         while (true) {

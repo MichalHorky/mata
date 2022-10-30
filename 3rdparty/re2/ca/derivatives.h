@@ -122,12 +122,22 @@ namespace re2 {
         const uint8_t* bytemap_array;
         int bytemap_range;
         
+        // new structures usded for delimiting counting loops of ca
+        typedef std::tuple<int, unsigned, std::set<re2::Regexp::Derivatives::counterGuard>, std::list<re2::Regexp::Derivatives::counterOperator>> CaTransition;
+        std::vector<std::vector<CaTransition>> transitions;
 
         // just an interface for computing CA, it returns the normalized regex
         Regexp *getCa(const std::string& pattern);
 
         // Gets guard for the corresponding operator
         static Derivatives::counterGuard getGuardForOperator(const Derivatives::counterOperator &op);
+
+        // parse to dot (only the reachable states)
+        void printToDOT1(std::ostream &outputStream) const; 
+
+        void printToDOT2(std::ostream &outputStream) const;
+
+        void removeUnreachableStates();
 
     private:
         std::list<re2::Regexp *> statesToCompute;
@@ -142,6 +152,10 @@ namespace re2 {
         };
 
         finalStateCondition unsetFinalStateCondition;
+
+
+        // functions used to delimit loops of ca
+        std::string transitionGrdsAndOpsToString(const CaTransition &trans) const;
 
         void computeNewState(re2::Regexp *regexp, const uint8_t *bytemap, int bytemapRange,
                              const std::string &compositionStrToConcat = "");
