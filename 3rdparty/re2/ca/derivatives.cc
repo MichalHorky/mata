@@ -917,13 +917,52 @@ namespace re2 {
                 && newStates.find(i) == newStates.end()
             ) {
                 for (auto &trans : transitions[i]) {
+                    std::set<std::pair<re2::Regexp::Derivatives::counterGuard, re2::Regexp::Derivatives::counterGuard>> changes{};
+                    for (auto &grd : std::get<2>(trans)) {
+                        if (grd.grd == re2::Regexp::Derivatives::counterGuardEnum::CanExit
+                            && grd.countingLoop == loop
+                        ) {
+                            std::pair<re2::Regexp::Derivatives::counterGuard, re2::Regexp::Derivatives::counterGuard> pair;
+                            pair.first = grd;
+                            pair.second.grd = re2::Regexp::Derivatives::counterGuardEnum::False;
+                            pair.second.countingLoop = 0;
+                            pair.second.counting_min = 0;
+                            pair.second.counting_max = 0;
+                            if (grd.counting_min == 0) {
+                                pair.second.grd = re2::Regexp::Derivatives::counterGuardEnum::True;
+                            }
+                            changes.insert(pair);
+                        } else if (grd.grd == re2::Regexp::Derivatives::counterGuardEnum::CanIncr
+                            && grd.countingLoop == loop
+                        ) {
+                            std::pair<re2::Regexp::Derivatives::counterGuard, re2::Regexp::Derivatives::counterGuard> pair;
+                            pair.first = grd;
+                            pair.second.grd = re2::Regexp::Derivatives::counterGuardEnum::True;
+                            pair.second.countingLoop = 0;
+                            pair.second.counting_min = 0;
+                            pair.second.counting_max = 0;
+                            changes.insert(pair);
+                        } 
+                    }
+                    for (auto &change : changes) {
+                        std::get<2>(trans).erase(change.first);
+                        std::get<2>(trans).insert(change.second);
+
+                    }
                     for (auto &op : std::get<3>(trans)) {
                         if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::INCR
-                            && op.countingLoop == loop) {
+                            && op.countingLoop == loop
+                        ) {
                             op.op = re2::Regexp::Derivatives::counterOperatorEnum::EXIT1;
                             if (map.find(std::get<1>(trans)) != map.end()) {
                                 std::get<1>(trans) = map[std::get<1>(trans)];
                             }
+                        }
+                        if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::EXIT
+                            && op.countingLoop == loop
+                        ) {
+                            op.op = re2::Regexp::Derivatives::counterOperatorEnum::ID;
+                            op.countingLoop = 0;
                         }
                     }
                     // add guard modifications
