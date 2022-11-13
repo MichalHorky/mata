@@ -720,6 +720,9 @@ namespace re2 {
             case re2::Regexp::Derivatives::counterOperatorEnum::EXIT1:
                 str = str + "Exit1";
                 break;
+            case re2::Regexp::Derivatives::counterOperatorEnum::RST1:
+                str = str + "RST1";
+                break;
             }
             str = str + " c:" + std::to_string(op.countingLoop) + ", ";
         }
@@ -953,7 +956,7 @@ namespace re2 {
                         if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::INCR
                             && op.countingLoop == loop
                         ) {
-                            op.op = re2::Regexp::Derivatives::counterOperatorEnum::EXIT1;
+                            op.op = re2::Regexp::Derivatives::counterOperatorEnum::RST1;
                             if (map.find(std::get<1>(trans)) != map.end()) {
                                 std::get<1>(trans) = map[std::get<1>(trans)];
                             }

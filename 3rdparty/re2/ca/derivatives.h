@@ -68,6 +68,7 @@ namespace re2 {
             INCR,
             EXIT,
             EXIT1,
+            RST1,
         };
 
         // Besides the operator itself, the counting loop must be saved
