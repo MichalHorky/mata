@@ -890,6 +890,15 @@ namespace re2 {
     }
 
     void Regexp::Derivatives::modifyLoopStates(std::map<unsigned, unsigned> map, std::set<unsigned> states, unsigned loop) {
+        std::set<unsigned> innerStates;
+        for (unsigned state : states) {
+            if (map.find(state) != map.end()) {
+                innerStates.insert(map[state]);
+            } else {
+                innerStates.insert(state);
+            }
+
+        }
         for (unsigned state : states) {
             unsigned index = state;
             if (map.find(state) != map.end()) {
@@ -900,7 +909,9 @@ namespace re2 {
                     std::get<1>(trans) = map[std::get<1>(trans)];
                 }
                 for (auto &op : std::get<3>(trans)) {
-                    if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::ID) {
+                    if (op.op == re2::Regexp::Derivatives::counterOperatorEnum::ID
+                        && (innerStates.find(std::get<1>(trans)) != innerStates.end())
+                    ) {
                         op.countingLoop = loop;
                     }
                 }
@@ -991,6 +1002,23 @@ namespace re2 {
             std::map<unsigned, unsigned> oldToNew = createNewStates(intersect, newStates);
             modifyLoopStates(oldToNew, loopStates, loop);
             modifyOuterTrans(oldToNew, loopStates, newStates, loop);
+        }
+        this->computeCounterStates();
+    }
+
+    void Regexp::Derivatives::computeCounterStates() {
+        this->counterStates.resize(this->countingLoops.size() + 1);
+        for (auto &state : this->transitions) {
+            for (auto &trans : state) {
+                for (auto &op : std::get<3>(trans)) {
+                    if (op.countingLoop != 0
+                        && op.op != Regexp::Derivatives::counterOperatorEnum::EXIT
+                    ) {
+                        this->counterStates[op.countingLoop].insert(std::get<1>(trans));
+                    }
+                }
+
+            }
         }
     }
 

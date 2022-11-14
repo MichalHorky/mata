@@ -126,6 +126,7 @@ namespace re2 {
         // new structures usded for delimiting counting loops of ca
         typedef std::tuple<int, unsigned, std::set<re2::Regexp::Derivatives::counterGuard>, std::list<re2::Regexp::Derivatives::counterOperator>> CaTransition;
         std::vector<std::vector<CaTransition>> transitions;
+        std::vector<std::set<unsigned>> counterStates;
 
         // just an interface for computing CA, it returns the normalized regex
         Regexp *getCa(const std::string& pattern);
@@ -175,6 +176,7 @@ namespace re2 {
             std::set<unsigned> newStates,
             unsigned loop
         );
+        void computeCounterStates();
 
         void computeNewState(re2::Regexp *regexp, const uint8_t *bytemap, int bytemapRange,
                              const std::string &compositionStrToConcat = "");
