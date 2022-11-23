@@ -69,7 +69,7 @@ namespace re2 {
                 switch (equationType) {
                     case Derivatives::concatenation: {
                         // The ordinal number of the first operand will be used as an index in bytemap array to get the number of the bytemap group
-                        unsigned char firstOperandChar = operand1->rune();
+                        unsigned char firstOperandChar;
                         bool negated = false;
                         std::unordered_set<int> bytemapGroupsForCharClasses;
                         // For charClass the char is saved differently
@@ -100,6 +100,7 @@ namespace re2 {
                                 }
                             }
                         } else {
+                            firstOperandChar = operand1->rune();
                             bytemapGroupsForCharClasses.insert(bytemap[int(firstOperandChar)]);
                         }
                         // This performs the check described in the second equation for conditional derivatives in the paper
