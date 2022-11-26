@@ -117,6 +117,12 @@ namespace re2 {
         std::vector<std::vector<Derivatives::caTransition>> partialDerivatives;
         std::vector<bool> existingPartialDerivatives;
 
+
+        // structs needed for csa
+        const uint8_t* bytemap_array;
+        int bytemap_range;
+        
+
         // just an interface for computing CA, it returns the normalized regex
         Regexp *getCa(const std::string& pattern);
 

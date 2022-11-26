@@ -28,6 +28,8 @@ namespace re2 {
         // The vector must have same length as CA have number of states so every state can be checked
         this->finalStates.resize(this->caStates.size(), this->unsetFinalStateCondition);
         this->finalStates[this->emptyStateNumber] = {Derivatives::True, 0, 0, 0, true};
+        this->bytemap_array = bytemap;
+        this->bytemap_range = prog->bytemap_range();
         return normalizedRegex;
     }
 
