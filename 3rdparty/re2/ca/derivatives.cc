@@ -883,6 +883,8 @@ namespace re2 {
         std::map<unsigned, unsigned> map{};
         for (unsigned state : statesToDuplicate) {
             this->transitions.push_back(this->transitions[state]);
+            this->finalStates.resize(this->transitions.size());
+            this->finalStates[state] = this->finalStates[state];
             map[state] = this->transitions.size() - 1;
             newStates.insert(this->transitions.size() - 1);
         }
@@ -1007,14 +1009,18 @@ namespace re2 {
     }
 
     void Regexp::Derivatives::computeCounterStates() {
-        this->counterStates.resize(this->countingLoops.size() + 1);
+        this->state_to_counter.resize(this->transitions.size(), {0,0,0});
         for (auto &state : this->transitions) {
             for (auto &trans : state) {
                 for (auto &op : std::get<3>(trans)) {
                     if (op.countingLoop != 0
                         && op.op != Regexp::Derivatives::counterOperatorEnum::EXIT
                     ) {
-                        this->counterStates[op.countingLoop].insert(std::get<1>(trans));
+                        this->state_to_counter[std::get<1>(trans)] = {
+                            op.countingLoop,
+                            countingLoopBounds[op.countingLoop].first,
+                            countingLoopBounds[op.countingLoop].second
+                        };
                     }
                 }
 

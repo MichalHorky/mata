@@ -126,7 +126,13 @@ namespace re2 {
         // new structures usded for delimiting counting loops of ca
         typedef std::tuple<int, unsigned, std::set<re2::Regexp::Derivatives::counterGuard>, std::list<re2::Regexp::Derivatives::counterOperator>> CaTransition;
         std::vector<std::vector<CaTransition>> transitions;
-        std::vector<std::set<unsigned>> counterStates;
+        struct Counter {
+            Counter(unsigned id, unsigned min, unsigned max) : id(id), min(min), max(max) {};
+            unsigned id;
+            unsigned min;
+            unsigned max;
+        };
+        std::vector<Counter> state_to_counter;
 
         // just an interface for computing CA, it returns the normalized regex
         Regexp *getCa(const std::string& pattern);
