@@ -63,6 +63,7 @@ add_library(libmata STATIC
 	nfa/nfa-segmentation.cc
 	nfa/noodlify.cc
 	rra/rrt.cc
+	csa/csa.cc
 )
 
 set_target_properties(libmata PROPERTIES
